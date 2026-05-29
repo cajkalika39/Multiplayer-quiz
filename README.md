@@ -334,6 +334,9 @@ socket.on('submit_answer', ({ roomId, answerIndex, timeSpent }) => {
     correctAnswer: question.correctAnswer
   });
 });
+
+---
+
 ## 6. API Endpoints (REST)
 
 | **Метод** | **Эндпоинт** | **Описание** | **Тело запроса** | **Ответ** |
