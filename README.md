@@ -48,10 +48,8 @@
 
 | Роль | Права и возможности |
 |------|---------------------|
-| **Гость** | Может только просматривать главную страницу и правила. Не может играть. |
 | **Авторизованный игрок** | Регистрация/вход. Создание комнат. Участие в играх. Просмотр личной статистики. Участие в глобальном лидерборде. |
 | **Создатель комнаты (Host)** | Настраивает параметры игры (категория, кол-во вопросов, таймер). Запускает игру. Имеет права кика игроков из лобби. |
-| **Администратор** | Доступ к админ-панели для управления вопросами (CRUD), просмотра статистики, модерации пользователей. |
 
 ---
 
@@ -70,32 +68,26 @@
 ### 3.2. Модуль комнат (Лобби)
 **Создание комнаты:**
 - Название комнаты
-- Тип доступа: публичная / приватная (по коду)
 - Максимальное количество игроков (2-8)
 - Количество вопросов (5, 10, 15)
-- Категория вопросов (Наука, История, Спорт, Кино, Разное или Микс)
 - Время на ответ (10, 20, 30 секунд)
 
 **Список комнат:**
-- Отображение публичных комнат с параметрами
-- Поиск по названию
-- Фильтрация по статусу (ожидание / в игре)
-
-**Приватный доступ:** Присоединение по 6-значному коду комнаты.
+- Отображение всех комнат
+- Поиск по коду
 
 **Лобби:**
 - Список игроков с аватарками
 - Индикаторы готовности (флажок "Готов")
-- Чат комнаты (текстовые сообщения)
 - Кнопка "Начать игру" (активна только для Host, когда минимум 2 игрока готовы)
 
 ### 3.3. Игровой процесс (Real-time)
 #### Этапы игры:
 1. **Обратный отсчет:** После нажатия "Старт" 3-секундный отсчет для всех.
-2. **Раунд (повторяется N раз):**
+2. **Раунд:**
    - **Вопрос:**
      - Текст вопроса отображается на экране
-     - 4 варианта ответа (карточки/кнопки)
+     - несколько вариантов ответа
      - Таймер обратного отсчета (визуальный прогресс-бар)
    - **Прием ответов:**
      - Игрок выбирает вариант → кнопки блокируются
@@ -108,7 +100,7 @@
      - Таблица с очками за текущий раунд (всплывающее окно на 3 сек)
 3. **Завершение игры:**
    - Финальная таблица результатов (пьедестал)
-   - Кнопки: "Играть снова" (реванш с теми же настройками), "В лобби", "На главную"
+   - Кнопка: "На главную"
 
 #### Формула подсчета очков:
 Базовые очки = 100
@@ -121,21 +113,15 @@
 - **Сортировка:**
   - По сумме очков за все время
   - По количеству побед
-  - По точности (% правильных ответов)
-- Отображение места текущего пользователя
 - Ежемесячный/еженедельный рейтинг (опционально)
 
 ### 3.5. База вопросов
 **Структура вопроса:**
 - Текст вопроса
-- 4 варианта ответа
-- Индекс правильного ответа (0-3)
-- Категория
-- Уровень сложности (easy, medium, hard)
+- несколько вариантов ответа
+- Индекс правильного ответа (от 0 до n-1)
 
-**Наполнение:** Минимум 100 вопросов в базе при старте
-
-**Админка:** CRUD для вопросов (отдельный интерфейс)
+**Наполнение:** Минимум 100 вопросов при старте
 
 ---
 
@@ -143,162 +129,221 @@
 
 | Компонент | Технология |
 |-----------|------------|
-| **Фронтенд** | React + TypeScript + Vite |
-| **UI библиотека** | Material UI / Chakra UI (для скорости разработки) |
-| **State Management** | Zustand (легкий) или Redux Toolkit |
+| **Фронтенд** | Vanilla JS + Vite |
+| **UI библиотека** | CSS-in-JS (для скорости разработки) |
 | **Бэкенд** | Node.js + Express.js (или NestJS) + TypeScript |
 | **Real-time** | Socket.io |
-| **База данных** | PostgreSQL (основные данные) |
-| **Кэш/сессии** | Redis (хранение активных комнат, временных состояний) |
-| **ORM** | Prisma / TypeORM |
-| **Контейнеризация** | Docker + Docker Compose |
+| **База данных** | Файл users.json (основные данные) |
 
 ---
 
 ## 5. Архитектура и модель данных
 
-### 5.1. Схема базы данных (PostgreSQL)
+### 5.1. Текущая архитектура (Файловая система + Map)
 
-```sql
--- Пользователи
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nickname VARCHAR(50) UNIQUE NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  avatar_url TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  total_score INTEGER DEFAULT 0,
-  games_played INTEGER DEFAULT 0,
-  wins INTEGER DEFAULT 0,
-  correct_answers INTEGER DEFAULT 0
-);
+| Компонент | Технология | Технология |
+|-----------|------------|------------|
+| **Пользователи** | JSON файл (users.json) | Хранение учетных записей и статистики |
+| **Комнаты** | Map в памяти сервера | Временное хранение активных игровых сессий |
+| **Вопросы** | JS массив (questions.js) | Статическая база из 100 вопросов |
+| **Авторизация** | JWT токены | Аутентификация пользователей |
 
--- Категории вопросов
-CREATE TABLE categories (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(50) UNIQUE NOT NULL
-);
-
--- Вопросы
-CREATE TABLE questions (
-  id SERIAL PRIMARY KEY,
-  text TEXT NOT NULL,
-  options JSONB NOT NULL,
-  correct_answer INTEGER NOT NULL CHECK (correct_answer BETWEEN 0 AND 3),
-  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  difficulty VARCHAR(10) CHECK (difficulty IN ('easy', 'medium', 'hard'))
-);
-
--- Комнаты (активные сессии)
-CREATE TABLE rooms (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code VARCHAR(6) UNIQUE NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  host_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  status VARCHAR(20) CHECK (status IN ('waiting', 'playing', 'finished')) DEFAULT 'waiting',
-  settings JSONB NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Игроки в комнате
-CREATE TABLE room_players (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  is_ready BOOLEAN DEFAULT false,
-  score INTEGER DEFAULT 0,
-  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(room_id, user_id)
-);
-
--- История игр
-CREATE TABLE games (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
-  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  finished_at TIMESTAMP,
-  winner_id UUID REFERENCES users(id) ON DELETE SET NULL
-);
-
--- Ответы на вопросы
-CREATE TABLE game_answers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  question_id INTEGER REFERENCES questions(id) ON DELETE SET NULL,
-  answer INTEGER CHECK (answer BETWEEN 0 AND 3),
-  is_correct BOOLEAN,
-  time_spent INTEGER,
-  points_earned INTEGER
-);
-
--- Глобальный лидерборд
-CREATE MATERIALIZED VIEW leaderboard AS
-SELECT 
-  u.id as user_id,
-  ROW_NUMBER() OVER (ORDER BY u.total_score DESC) as rank,
-  u.total_score,
-  u.wins,
-  CASE 
-    WHEN u.games_played > 0 
-    THEN (u.correct_answers::float / (u.games_played * 10) * 100)
-    ELSE 0 
-  END as accuracy
-FROM users u
-WHERE u.games_played > 0
-ORDER BY u.total_score DESC
-LIMIT 100;
-## 5.2. Redis структуры
+## 5.2. Структуры данных
 
 ```yaml
-# Хранение состояния комнаты
-room:{roomId}:state:
-  type: hash
-  description: Текущее состояние комнаты
-  fields:
-    players: "массив игроков с их данными"
-    currentQuestion: "объект текущего вопроса"
-    settings: "настройки комнаты"
-    status: "статус комнаты (waiting/playing/finished)"
-  ttl: "до окончания игры"
+# Пользователи (users.json)
+{
+  "id": "63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+  "nickname": "Алексей",
+  "email": "alex@example.com",
+  "password": "$2a$10$WxYEsI1kBchNr./WzSF86um1DrY58we0J/dlS8PPbEczwFP.4xKSu",
+  "avatarUrl": "https://api.dicebear.com/7.x/avataaars/svg?seed=63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+  "createdAt": "2026-05-14T01:06:12.674Z",
+  "totalScore": 1250,
+  "gamesPlayed": 5,
+  "wins": 2,
+  "correctAnswers": 38
+}
 
-# Очки игроков
-room:{roomId}:players:
-  type: hash
-  description: Хеш-таблица с очками игроков
-  fields:
-    {userId}: "текущие очки игрока"
-  ttl: "до окончания игры"
+# Комнаты (Map в памяти)
+// Структура комнаты
+const room = {
+  id: "f7d3e8a1-9b4c-4e2f-8d6a-1c3b5e7f9d2b",
+  code: "ABC123",
+  name: "Ночная битва",
+  hostId: "63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+  status: "playing", // "waiting" | "playing" | "finished"
+  settings: {
+    maxPlayers: 4,
+    questionsCount: 10,
+    timeLimit: 20,
+    category: "Микс"
+  },
+  players: new Map([
+    ["63f90996-b253-4e91-83d3-d1f6d4cc00e3", {
+      userId: "63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+      nickname: "Алексей",
+      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=63f90996...",
+      isReady: true,
+      score: 450
+    }],
+    ["eda70523-6470-479c-ac0e-3c6f42dba3af", {
+      userId: "eda70523-6470-479c-ac0e-3c6f42dba3af",
+      nickname: "Мария",
+      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=eda70523...",
+      isReady: true,
+      score: 380
+    }]
+  ]),
+  currentQuestion: 3,
+  selectedQuestions: [...], // массив из 10 случайных вопросов
+  answers: new Map([
+    ["63f90996-b253-4e91-83d3-d1f6d4cc00e3_0", { answerIndex: 1, points: 120 }],
+    ["eda70523-6470-479c-ac0e-3c6f42dba3af_0", { answerIndex: 1, points: 120 }],
+    ["63f90996-b253-4e91-83d3-d1f6d4cc00e3_1", { answerIndex: 0, points: 0 }],
+    ["eda70523-6470-479c-ac0e-3c6f42dba3af_1", { answerIndex: 2, points: 95 }]
+  ])
+};
 
-# Ответы за раунд
-room:{roomId}:answers:{questionId}:
-  type: list
-  description: Временное хранение ответов за текущий раунд
-  value: 
-    - userId: "идентификатор игрока"
-      answer: "индекс ответа (0-3)"
-      timeSpent: "время ответа в мс"
-      isCorrect: "флаг правильности"
-  ttl: "после окончания раунда"
+# Игрок в комнате (объект внутри Map)
+{
+  userId: "63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+  nickname: "Алексей",
+  avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=63f90996-b253-4e91-83d3-d1f6d4cc00e3",
+  isReady: true,
+  score: 450
+}
+
+# Вопросы (questions.js)
+// Массив из 100 вопросов
+const QUESTIONS_DB = [
+  {
+    id: 1,
+    text: "Каково средние расстояние от Земли до Луны?",
+    options: ["148 450 км", "384 467 км", "149 600 000 км"],
+    correctAnswer: 1  // индекс правильного ответа (0, 1 или 2)
+  },
+  {
+    id: 2,
+    text: "На каком континенте расположено государство Перу?",
+    options: ["Африка", "Южная Америка", "Северная Америка"],
+    correctAnswer: 1
+  },
+  {
+    id: 3,
+    text: "Сколько томов в романе Льва Толстого «Война и мир»?",
+    options: ["3", "4", "5"],
+    correctAnswer: 1
+  },
+  {
+    id: 4,
+    text: "Существует ли вид страусов, представители которого могут летать?",
+    options: ["Нет", "Да"],
+    correctAnswer: 0
+  }
+  // ... еще 96 вопросов
+];
+
+# Формула подсчета очков (код)
+// server.js
+const calculatePoints = (isCorrect, timeLeft, maxTime) => {
+  if (!isCorrect) return 0;
+  const speedBonus = (timeLeft / maxTime) * 50;
+  return Math.round(100 + speedBonus);
+};
+
+// Пример расчета:
+// Правильный ответ, осталось 15 секунд из 20:
+// speedBonus = (15 / 20) * 50 = 37.5
+// результат = 100 + 37.5 = 138 (округление до 138)
+
+# Хранение ответов
+// Формат ключа: `${userId}_${questionIndex}`
+// Примеры ключей:
+"63f90996-b253-4e91-83d3-d1f6d4cc00e3_0"  // ответ пользователя на 1-й вопрос
+"eda70523-6470-479c-ac0e-3c6f42dba3af_1"  // ответ пользователя на 2-й вопрос
+"ca88e3f9-aeb1-4044-96d2-03dc9c390ee6_2"  // ответ пользователя на 3-й вопрос
+
+// Значение:
+{
+  answerIndex: 1,  // выбран вариант с индексом 1
+  points: 138      // заработано 138 очков
+}
+
+# Функция получения случайных вопросов
+// questions.js
+export function getRandomQuestions(count) {
+  const shuffled = [...QUESTIONS_DB];
+  // Алгоритм Фишера-Йетса для перемешивания
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+// Пример использования:
+const questions = getRandomQuestions(10);
+// Вернет 10 случайных, неповторяющихся вопросов
+
+# Генерация кода комнаты
+// server.js
+const generateRoomCode = () => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+// Примеры сгенерированных кодов:
+// "ABC123"
+// "X9F4K2"
+// "M7N8P3"
+// "QW5RT1"
+
+# Middleware авторизации (JWT)
+// server.js
+const authMiddleware = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Неверный токен' });
+  }
+};
+
+// Пример использования:
+app.post('/api/rooms/create', authMiddleware, (req, res) => {
+  // req.userId доступен здесь
+});
+
+# WebSocket обработка ответа
+// server.js
+socket.on('submit_answer', ({ roomId, answerIndex, timeSpent }) => {
+  const room = rooms.get(roomId);
+  const question = room.selectedQuestions[room.currentQuestion];
+  
+  const isCorrect = answerIndex === question.correctAnswer;
+  const timeLeft = Math.max(0, room.settings.timeLimit - timeSpent);
+  const points = calculatePoints(isCorrect, timeLeft, room.settings.timeLimit);
+  
+  socket.emit('answer_result', {
+    isCorrect,
+    pointsEarned: points,
+    correctAnswer: question.correctAnswer
+  });
+});
 ## 6. API Endpoints (REST)
 
 | **Метод** | **Эндпоинт** | **Описание** | **Тело запроса** | **Ответ** |
 |-----------|--------------|--------------|-------------------|-----------|
-| **POST** | `/api/auth/register` | Регистрация | `{ nickname, email, password }` | `{ user, token }` |
-| **POST** | `/api/auth/login` | Вход | `{ login, password }` | `{ user, token }` |
-| **GET** | `/api/users/:id` | Профиль пользователя | - | `{ id, nickname, avatar, stats }` |
-| **GET** | `/api/users/:id/stats` | Статистика пользователя | - | `{ gamesPlayed, wins, accuracy, totalScore }` |
-| **POST** | `/api/rooms` | Создание комнаты | `{ name, accessType, maxPlayers, questionsCount, category, timeLimit }` | `{ roomId, code, settings }` |
-| **GET** | `/api/rooms` | Список публичных комнат | `?search=&status=` | `[{ id, name, players, status }]` |
-| **GET** | `/api/rooms/:id` | Информация о комнате | - | `{ id, code, name, host, players, settings }` |
-| **POST** | `/api/rooms/:code/join` | Присоединиться по коду | `{ userId }` | `{ roomId, settings }` |
-| **GET** | `/api/leaderboard` | Глобальный лидерборд | `?page=&limit=` | `[{ rank, user, score, wins, accuracy }]` |
-| **GET** | `/api/leaderboard/user/:id` | Место пользователя | - | `{ rank, user, stats }` |
-| **GET** | `/api/categories` | Список категорий | - | `[{ id, name }]` |
-| **POST** | `/api/admin/questions` | Добавить вопрос | `{ text, options, correctAnswer, categoryId, difficulty }` | `{ questionId }` |
-| **PUT** | `/api/admin/questions/:id` | Редактировать вопрос | `{ text, options, correctAnswer, categoryId, difficulty }` | `{ success }` |
-| **DELETE** | `/api/admin/questions/:id` | Удалить вопрос | - | `{ success }` |
+| **POST** | `/api/auth/register` | Регистрация | `{ email, password, nickname }` | `{ token, user }` |
+| **POST** | `/api/auth/login` | Вход | `{ login, password }` | `{ token, user }` |
+| **GET** | `/api/leaderboard` | Глобальный лидерборд | - | `[{ rank, id, nickname, avatarUrl, totalScore, wins, accuracy }]` |
+| **GET** | `/api/rooms` | Список публичных комнат | - | `[{ id, name, code, playersCount, maxPlayers, status }]` |
+| **POST** | `/api/rooms/create` | Создание комнаты | `{ name, maxPlayers, questionsCount, timeLimit, hostId }` | `{ roomId, code }` |
+| **POST** | `/api/rooms/join` | Присоединиться к комнате | `{ code, userId, roomId }` | `{ roomId }` |
 
 ---
 
@@ -315,7 +360,6 @@ room:{roomId}:answers:{questionId}:
 | `player_ready` | Изменение статуса готовности | `{ roomId: "uuid", isReady: boolean }` |
 | `start_game` | Запуск игры (только Host) | `{ roomId: "uuid" }` |
 | `submit_answer` | Отправка ответа на вопрос | `{ roomId: "uuid", questionId: number, answerIndex: number, timeSpent: number }` |
-| `chat_message` | Отправка сообщения в чат | `{ roomId: "uuid", message: string }` |
 
 ### Сервер → Клиент
 
@@ -328,9 +372,7 @@ room:{roomId}:answers:{questionId}:
 | `game_starting` | Начало игры (обратный отсчет) | `{ countdown: number }` |
 | `new_question` | Новый вопрос | `{ questionId: number, text: string, options: string[], timeLimit: number, currentQuestion: number, totalQuestions: number }` |
 | `answer_result` | Результат ответа (индивидуально) | `{ isCorrect: boolean, pointsEarned: number, correctAnswer: number }` |
-| `round_summary` | Сводка по раунду | `{ correctAnswer: number, roundResults: Array }` |
 | `game_over` | Игра окончена | `{ results: Array, winner: Object }` |
-| `new_chat_message` | Новое сообщение в чате | `{ userId: "uuid", nickname: string, message: string, timestamp: number }` |
 
 ---
 
@@ -343,38 +385,45 @@ room:{roomId}:answers:{questionId}:
 
 | **Дни** | **Задача** | **Детали** |
 |---------|------------|------------|
-| **День 1-2** | Настройка инфраструктуры | Инициализация репозитория, Docker Compose, TypeScript, ESLint, Prettier, Express сервер |
-| **День 2-4** | База данных и модели | Проектирование схемы БД, миграции, репозитории |
-| **День 3-5** | REST API | Авторизация (JWT), CRUD для комнат, профили, статистика, лидерборд с кэшированием |
-| **День 4-6** | База вопросов | Таблицы вопросов, seed данные, админские эндпоинты |
-| **День 5-8** | WebSocket ядро | Socket.io сервер, управление комнатами, логика игры, подсчет очков, сохранение результатов |
-| **День 7-9** | Redis интеграция | Хранение состояний, управление таймерами, кэширование лидерборда |
-| **День 10-14** | Тестирование | Написание тестов, оптимизация запросов, багфиксинг |
+| **День 1-2** | Настройка инфраструктуры | Инициализация репозитория, Express сервер, nodemon, dotenv |
+| **День 2-3** | Файловое хранилище | Реализация users.json, функции loadUsers() и saveUsers() |
+| **День 3-4** | REST API авторизации | JWT, bcrypt, эндпоинты /register и /login |
+| **День 4-5** | REST API комнат | Эндпоинты /rooms, /rooms/create, /rooms/join |
+| **День 5-7** | WebSocket ядро | Socket.io сервер, join_room, player_ready, start_game |
+| **День 7-8** | Игровая логика | Функции sendNextQuestion, calculatePoints, endGame |
+| **День 8-10** | База вопросов | Массив QUESTIONS_DB на 100 вопросов, getRandomQuestions |
+| **День 10-11** | Лидерборд | Эндпоинт /leaderboard, расчет accuracy, сортировка |
+| **День 11-12** | Обработка ошибок | Try/catch, валидация входных данных, коды ошибок |
+| **День 12-14** | Тестирование | Ручное тестирование, исправление багов, оптимизация |
 
 ### Разработчик 2 (Frontend & UI/UX Lead)
 
-| **Фокус** | Интерфейс, клиентская логика, Socket.io клиент, визуальные эффекты |
+| **Фокус** | Интерфейс, клиентская логика, Socket.io клиент, CSS |
 |-----------|------------------------------------------------------------------|
 
 | **Дни** | **Задача** | **Детали** |
 |---------|------------|------------|
-| **День 1-2** | Настройка фронтенда | React + Vite + TypeScript, роутинг, UI библиотека, темизация |
-| **День 2-3** | State Management | Zustand/Redux, API клиент (axios), React Query/SWR |
-| **День 3-7** | Страницы и компоненты | Главная, авторизация, создание комнаты, лобби, игровой экран, результаты, профиль, лидерборд |
-| **День 6-9** | Socket.io клиент | Подключение к WebSocket, обработка событий, оптимистичные обновления, переподключение |
-| **День 8-11** | Анимации | Анимация вопросов, подсветка ответов, звуковые эффекты, адаптивный дизайн |
-| **День 10-14** | Интеграция | Сквозное тестирование, исправление багов, финальная полировка |
+| **День 1-2** | Настройка фронтенда | HTML/CSS/JS структура, Vite конфигурация |
+| **День 2-3** | API клиент | Fetch wrapper, обработка ошибок, хранение токена |
+| **День 3-5** | Страница авторизации | Формы логина и регистрации, валидация полей |
+| **День 4-6** | Лобби и комнаты | Создание комнаты, список комнат, присоединение по коду |
+| **День 6-7** | Компонент комнаты | Отображение игроков, кнопка готовности, кнопка старта |
+| **День 7-9** | WebSocket клиент | Подключение, обработка событий room_state, game_starting |
+| **День 8-10** | Игровой экран | Отображение вопроса, вариантов ответа, таймера |
+| **День 10-11** | Обработка ответов | Отправка submit_answer, блокировка кнопок, уведомления |
+| **День 11-13** | Экран результатов | Таблица результатов, определение победителя, кнопки навигации |
+| **День 13-14** | Адаптивный дизайн | CSS медиа-запросы, мобильная верстка |
 
 ### Совместные задачи
 
 | **День** | **Задача** | **Участники** |
 |----------|------------|---------------|
-| **День 1** | Согласование API контрактов (Swagger/OpenAPI) | Оба |
-| **День 2** | Согласование схемы БД | Оба |
-| **День 4** | Первая интеграция: авторизация + создание комнаты | Оба |
+| **День 1** | Согласование форматов данных | Оба |
+| **День 2** | Определение структуры комнаты и игрока | Оба |
+| **День 4** | Интеграция: авторизация + создание комнаты | Оба |
 | **День 7** | Интеграция WebSocket: лобби и готовность | Оба |
-| **День 10** | Полный игровой цикл (тестирование) | Оба |
-| **День 12** | Code review | Оба |
+| **День 10** | Интеграция WebSocket: лобби и готовность | Оба |
+| **День 12** | Интеграция: полный игровой цикл | Оба |
 | **День 14** | Финальное демо и деплой | Оба |
 
 ---
@@ -397,13 +446,11 @@ room:{roomId}:answers:{questionId}:
 | Финальная таблица результатов отображается | ✅ |
 | Результаты сохраняются в личный профиль | ✅ |
 | Глобальный лидерборд показывает топ игроков | ✅ |
-| Админ может добавлять/редактировать вопросы | ✅ |
 
 ### Качество кода
 
 | **Критерий** | **Статус** |
 |--------------|------------|
-| TypeScript strict mode включен | ✅ |
 | Нет console.log в продакшене | ✅ |
 | Код отформатирован (Prettier) | ✅ |
 | Обработка ошибок (try/catch, fallback UI) | ✅ |
@@ -426,11 +473,9 @@ room:{roomId}:answers:{questionId}:
 | **Риск** | **Вероятность** | **Митигация (План Б)** |
 |----------|-----------------|------------------------|
 | Сложности с синхронизацией таймера | 🔴 Высокая | Таймер на сервере, клиент получает только оставшееся время; использовать `Date.now()` для синхронизации |
-| Масштабирование WebSocket | 🟡 Средняя | Использовать Redis adapter для Socket.io, чтобы комнаты работали на нескольких серверах |
 | Читерство (быстрые клики) | 🟡 Средняя | Сервер проверяет время ответа, игнорирует ответы после таймера |
 | Конфликты Git | 🟡 Средняя | Ветки feat/backend-* и feat/frontend-*, регулярный merge из main |
 | Нехватка времени на дизайн | 🔴 Высокая | Использовать готовую UI библиотеку, не тратить время на кастомные стили |
-| Падение сервера во время игры | 🟢 Низкая | Автосохранение состояния в Redis, возможность переподключения игроков |
 
 ---
 
@@ -438,10 +483,10 @@ room:{roomId}:answers:{questionId}:
 
 | **Неделя** | **Разработчик 1 (Бэкенд)** | **Разработчик 2 (Фронтенд)** |
 |------------|----------------------------|------------------------------|
-| **Неделя 1** | Сетап, БД, REST API, база вопросов | Сетап, роутинг, авторизация, создание комнат |
-| **Неделя 2** | WebSocket ядро, логика игры, Redis | Лобби, чат, список комнат, интеграция с REST |
-| **Неделя 3** | Подсчет очков, статистика, лидерборд | Игровой экран, таймер, анимации, интеграция с WS |
-| **Неделя 4** | Тестирование, багфикс, админка | Результаты, профиль, полировка, деплой |
+| **Неделя 1** | Сетап Express, JWT, users.json, API регистрации/логина | Сетап HTML/CSS/JS, формы авторизации, fetch API |
+| **Неделя 2** | Socket.io, комнаты (Map), join_room, player_ready | WebSocket клиент, лобби, список комнат, присоединение |
+| **Неделя 3** | start_game, submit_answer, calculatePoints, endGame | Игровой экран, таймер, ответы, блокировка кнопок |
+| **Неделя 4** | 100 вопросов, лидерборд, users.json обновление статистики | Адаптивный CSS, уведомления, экран результатов, полировка |
 
 ---
 
@@ -450,10 +495,8 @@ room:{roomId}:answers:{questionId}:
 
 | **Элемент** | **Описание** | **Функциональность** |
 |-------------|--------------|----------------------|
-| **Заголовок комнаты** | Отображает название комнаты и код для приглашения | Кнопка "Скопировать" копирует код в буфер обмена |
+| **Заголовок комнаты** | Отображает название комнаты и код для приглашения | Можно скопировать код в буфер обмена |
 | **Список игроков** | Показывает всех участников комнаты | [✓] - игрок готов, [ ] - игрок не готов |
-| **Чат** | Область для общения игроков | Отправка и получение текстовых сообщений |
-| **Поле ввода чата** | Текстовое поле для набора сообщения | Отправка по кнопке или нажатию Enter |
 | **Кнопка "Начать игру"** | Запуск игрового процесса | Активна только для Host при 2+ готовых игроках |
 
 ---
@@ -468,8 +511,6 @@ room:{roomId}:answers:{questionId}:
 | `text` | string | "Какой химический элемент обозначается символом 'O'?" |
 | `options` | string[] | `["Золото", "Кислород", "Серебро", "Водород"]` |
 | `correctAnswer` | number | 1 |
-| `categoryId` | number | 3 |
-| `difficulty` | string | "easy" |
 
 ```json
 {
@@ -495,7 +536,7 @@ room:{roomId}:answers:{questionId}:
 | **Вопрос** | Текст текущего вопроса | Отображается крупным шрифтом по центру |
 | **Варианты ответов** | 4 карточки с вариантами ответа | При нажатии отправляется ответ, кнопки блокируются |
 | **Таблица очков** | Текущий счет всех игроков | Обновляется в реальном времени после каждого раунда |
-| **Подсветка ответов** | Визуальный фидбек | Зеленый - правильный ответ, красный - неправильный |
+| **Тост-уведомление** | Визуальный фидбек | Зеленый - правильный ответ, красный - неправильный |
 
 
 #### Описание элементов экрана результатов:
@@ -504,9 +545,7 @@ room:{roomId}:answers:{questionId}:
 |-------------|--------------|----------------------|
 | **Заголовок** | Объявляет об окончании игры | Анимированное появление |
 | **Пьедестал** | Отображение топ-3 игроков | 1 место - золото, 2 место - серебро, 3 место - бронза |
-| **Имена и очки** | Никнеймы и набранные очки | Крупное выделение победителя |
-| **Кнопка "Играть снова"** | Реванш с теми же настройками | Создает новую комнату с теми же параметрами |
-| **Кнопка "В лобби"** | Возврат в лобби текущей комнаты | Все игроки возвращаются в лобби |
+| **Имена и очки** | Никнеймы и набранные очки | Выделение победителя (подсветка желтым) |
 | **Кнопка "На главную"** | Выход на главный экран | Покинуть текущую комнату |
 
 ---
@@ -517,11 +556,9 @@ room:{roomId}:answers:{questionId}:
 
 | **Элемент** | **Описание** | **Функциональность** |
 |-------------|--------------|----------------------|
-| **Аватар** | Изображение пользователя | Генерируется по умолчанию или загружается |
-| **Никнейм** | Имя пользователя | Отображается под аватаром |
-| **Дата регистрации** | Когда создан аккаунт | Информационное поле |
+| **Аватар** | Изображение пользователя | Генерируется по умолчанию |
+| **Никнейм** | Имя пользователя | Отображается перед аватаром |
 | **Блок статистики** | Общая статистика игр | Ключевые показатели игрока |
-| **История игр** | Список последних игр | Дата, соперники, место, полученные очки |
 
 ---
 
@@ -533,10 +570,6 @@ room:{roomId}:answers:{questionId}:
 |-------------|--------------|----------------------|
 | **Заголовок** | Название таблицы рейтинга | "Глобальный лидерборд" |
 | **Таблица** | Список топ-100 игроков | Колонки: место, имя, очки, победы, точность |
-| **Строка пользователя** | Выделенная строка текущего пользователя | Показывает место игрока в рейтинге |
-| **Пагинация** | Навигация по страницам лидерборда | Переключение между страницами таблицы |
-| **Индикатор места** | Отображение позиции пользователя | "Ваше место: #42" |
 
 ---
 
-### Экран админ-панели (управление вопросами)
